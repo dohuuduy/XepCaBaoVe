@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảo Vệ Shift Scheduler</title>
+    <style>
+        :root {
+            --morning: #f8e58c;
+            --afternoon: #ffcce6;
+            --evening: #d1e7ff;
+            --off-day: #e8f5e9;
+            --header: #4a6fa5;
+            --text: #333;
+            --button-primary: #4a6fa5;
+            --button-hover: #3a5a8a;
+            --button-secondary: #6c757d;
+            --button-danger: #dc3545;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: var(--text);
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: var(--header);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .month-navigator {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 8px 15px;
+            background-color: var(--button-primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: var(--button-hover);
+        }
+        
+        button.secondary {
+            background-color: var(--button-secondary);
+        }
+        
+        button.danger {
+            background-color: var(--button-danger);
+        }
+        
+        .current-month {
+            font-weight: bold;
+            font-size: 1.2em;
+            min-width: 180px;
+            text-align: center;
+        }
+        
+        .staff-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .staff-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .staff-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid #ddd;
+        }
+        
+        .calendar {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .calendar th {
+            background-color: var(--header);
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .calendar td {
+            border: 1px solid #ddd;
+            padding: 5px;
+            height: 80px;
+            vertical-align: top;
+            position: relative;
+        }
+        
+        .day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .weekend {
+            background-color: #f9f9f9;
+        }
+        
+        .holiday {
+            background-color: #ffebee;
+        }
+        
+        .shift {
+            font-size: 0.8em;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+            display: block;
+        }
+        
+        .morning {
+            background-color: var(--morning);
+        }
+        
+        .afternoon {
+            background-color: var(--afternoon);
+        }
+        
+        .evening {
+            background-color: var(--evening);
+        }
+        
+        .off-day {
+            background-color: var(--off-day);
+            color: #666;
+        }
+        
+        .shift-count {
+            position: absolute;
+            bottom: 2px;
+            right: 5px;
+            font-size: 0.7em;
+            color: #666;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9em;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+        
+        .staff-selector {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .export-options {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .calendar td {
+                height: 60px;
+                font-size: 0.8em;
+            }
+            
+            .shift {
+                font-size: 0.7em;
+                padding: 1px 3px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BẢO VỆ SHIFT SCHEDULER</h1>
+        
+        <div class="notification" id="notification"></div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <div class="month-navigator">
+                    <button id="prev-month">← Tháng trước</button>
+                    <div class="current-month" id="current-month">Tháng 1, 2024</div>
+                    <button id="next-month">Tháng sau →</button>
+                </div>
+                
+                <button id="generate-btn" class="secondary">Tạo lịch tự động</button>
+                <button id="save-btn" class="secondary">Lưu lịch</button>
+            </div>
+            
+            <div class="control-group">
+                <select id="staff-selector" class="staff-selector">
+                    <option value="all">Tất cả nhân viên</option>
+                </select>
+                <button id="export-excel" class="secondary">Xuất Excel</button>
+            </div>
+        </div>
+        
+        <div class="staff-list" id="staff-list"></div>
+        
+        <table class="calendar" id="calendar">
+            <thead>
+                <tr>
+                    <th>Thứ 2</th>
+                    <th>Thứ 3</th>
+                    <th>Thứ 4</th>
+                    <th>Thứ 5</th>
+                    <th>Thứ 6</th>
+                    <th>Thứ 7</th>
+                    <th>Chủ nhật</th>
+                </tr>
+            </thead>
+            <tbody id="calendar-body">
+                <!-- Calendar will be generated here -->
+            </tbody>
+        </table>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color morning"></div>
+                <span>Ca 1 - Sáng (3 người)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color afternoon"></div>
+                <span>Ca 2 - Chiều (3 người T2-T6, 2 người T7-CN)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color evening"></div>
+                <span>Ca 3 - Tối (2 người)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color off-day"></div>
+                <span>Ngày nghỉ</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Dialog -->
+    <div id="export-dialog" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:5px; box-shadow:0 0 10px rgba(0,0,0,0.2); z-index:1001;">
+        <h3>Chọn kiểu xuất Excel</h3>
+        <div class="export-options">
+            <button id="export-vertical" class="secondary">Kiểu dọc (theo ngày)</button>
+            <button id="export-horizontal" class="secondary">Kiểu ngang (theo nhân viên)</button>
+        </div>
+        <button id="cancel-export" style="margin-top:15px;">Hủy bỏ</button>
+    </div>
+    <div id="export-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000;"></div>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <script>
+        // Configuration
+        const staffMembers = [
+            { id: 1, name: "Bảo vệ 1", color: "#FF5733" },
+            { id: 2, name: "Bảo vệ 2", color: "#33FF57" },
+            { id: 3, name: "Bảo vệ 3", color: "#3357FF" },
+            { id: 4, name: "Bảo vệ 4", color: "#F033FF" },
+            { id: 5, name: "Bảo vệ 5", color: "#FF33F0" },
+            { id: 6, name: "Bảo vệ 6", color: "#33FFF0" },
+            { id: 7, name: "Bảo vệ 7", color: "#F0FF33" },
+            { id: 8, name: "Bảo vệ 8", color: "#8A2BE2" },
+            { id: 9, name: "Bảo vệ 9", color: "#FF8C00" }
+        ];
+
+        const shiftRequirements = {
+            weekday: { morning: 3, afternoon: 3, evening: 2 }, // Monday-Friday
+            saturday: { morning: 3, afternoon: 2, evening: 2 },
+            sunday: { morning: 2, afternoon: 2, evening: 2 }
+        };
+
+        // App state
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        let scheduleData = JSON.parse(localStorage.getItem('scheduleData')) || {};
+        let selectedStaff = 'all';
+
+        // DOM elements
+        const currentMonthElement = document.getElementById('current-month');
+        const prevMonthButton = document.getElementById('prev-month');
+        const nextMonthButton = document.getElementById('next-month');
+        const calendarBody = document.getElementById('calendar-body');
+        const staffListElement = document.getElementById('staff-list');
+        const staffSelector = document.getElementById('staff-selector');
+        const generateBtn = document.getElementById('generate-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const exportExcelBtn = document.getElementById('export-excel');
+        const notification = document.getElementById('notification');
+        const exportDialog = document.getElementById('export-dialog');
+        const exportOverlay = document.getElementById('export-overlay');
+        const exportVerticalBtn = document.getElementById('export-vertical');
+        const exportHorizontalBtn = document.getElementById('export-horizontal');
+        const cancelExportBtn = document.getElementById('cancel-export');
+
+        // Initialize the app
+        function init() {
+            // Set up event listeners
+            prevMonthButton.addEventListener('click', goToPreviousMonth);
+            nextMonthButton.addEventListener('click', goToNextMonth);
+            staffSelector.addEventListener('change', handleStaffSelection);
+            generateBtn.addEventListener('click', generateNewSchedule);
+            saveBtn.addEventListener('click', saveSchedule);
+            exportExcelBtn.addEventListener('click', showExportDialog);
+            exportVerticalBtn.addEventListener('click', exportToExcelVertical);
+            exportHorizontalBtn.addEventListener('click', exportToExcelHorizontal);
+            cancelExportBtn.addEventListener('click', hideExportDialog);
+
+            // Initialize staff list and selector
+            renderStaffList();
+            initializeStaffSelector();
+
+            // Generate initial schedule if not exists
+            const monthKey = `${currentMonth}-${currentYear}`;
+            if (!scheduleData[monthKey]) {
+                generateSchedule();
+            }
+            
+            updateCalendar();
+        }
+
+        // Navigation functions
+        function goToPreviousMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            updateCalendar();
+        }
+
+        function goToNextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            updateCalendar();
+        }
+
+        function handleStaffSelection(e) {
+            selectedStaff = e.target.value;
+            updateCalendar();
+        }
+
+        // Show notification
+        function showNotification(message, isSuccess = true) {
+            notification.textContent = message;
+            notification.style.backgroundColor = isSuccess ? '#4CAF50' : '#f44336';
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Staff list functions
+        function renderStaffList() {
+            staffListElement.innerHTML = '';
+            staffMembers.forEach(staff => {
+                const staffItem = document.createElement('div');
+                staffItem.className = 'staff-item';
+                staffItem.innerHTML = `
+                    <div class="staff-color" style="background-color: ${staff.color}"></div>
+                    <span>${staff.name}</span>
+                `;
+                staffListElement.appendChild(staffItem);
+            });
+        }
+
+        function initializeStaffSelector() {
+            staffSelector.innerHTML = '';
+            
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = 'Tất cả nhân viên';
+            staffSelector.appendChild(allOption);
+            
+            staffMembers.forEach(staff => {
+                const option = document.createElement('option');
+                option.value = staff.id;
+                option.textContent = staff.name;
+                staffSelector.appendChild(option);
+            });
+        }
+
+        // Schedule generation functions
+        function generateNewSchedule() {
+            const monthKey = `${currentMonth}-${currentYear}`;
+            delete scheduleData[monthKey];
+            generateSchedule();
+            updateCalendar();
+            showNotification(`Đã tạo lịch mới cho ${currentMonthElement.textContent}`);
+        }
+
+        function generateSchedule() {
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const monthKey = `${currentMonth}-${currentYear}`;
+            
+            scheduleData[monthKey] = {};
+            
+            // Create a rotating schedule pattern
+            let staffIndex = 0;
+            let consecutiveWorkDays = 0;
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(currentYear, currentMonth, day);
+                const dayOfWeek = date.getDay(); // 0 (Sun) to 6 (Sat)
+                
+                // Determine shift requirements for this day
+                let shiftsNeeded;
+                if (dayOfWeek === 0) { // Sunday
+                    shiftsNeeded = shiftRequirements.sunday;
+                } else if (dayOfWeek === 6) { // Saturday
+                    shiftsNeeded = shiftRequirements.saturday;
+                } else { // Weekday
+                    shiftsNeeded = shiftRequirements.weekday;
+                }
+                
+                // Assign staff to shifts
+                const dayShifts = {
+                    morning: [],
+                    afternoon: [],
+                    evening: []
+                };
+                
+                // Assign morning shifts (Ca 1)
+                for (let i = 0; i < shiftsNeeded.morning; i++) {
+                    const staff = staffMembers[staffIndex % staffMembers.length];
+                    dayShifts.morning.push(staff.id);
+                    staffIndex++;
+                    consecutiveWorkDays++;
+                    
+                    // Ensure no one works more than 6 consecutive days
+                    if (consecutiveWorkDays >= 6) {
+                        staffIndex++; // Skip this staff for next day (their day off)
+                        consecutiveWorkDays = 0;
+                    }
+                }
+                
+                // Assign afternoon shifts (Ca 2)
+                for (let i = 0; i < shiftsNeeded.afternoon; i++) {
+                    const staff = staffMembers[staffIndex % staffMembers.length];
+                    dayShifts.afternoon.push(staff.id);
+                    staffIndex++;
+                    consecutiveWorkDays++;
+                    
+                    if (consecutiveWorkDays >= 6) {
+                        staffIndex++;
+                        consecutiveWorkDays = 0;
+                    }
+                }
+                
+                // Assign evening shifts (Ca 3)
+                for (let i = 0; i < shiftsNeeded.evening; i++) {
+                    const staff = staffMembers[staffIndex % staffMembers.length];
+                    dayShifts.evening.push(staff.id);
+                    staffIndex++;
+                    consecutiveWorkDays++;
+                    
+                    if (consecutiveWorkDays >= 6) {
+                        staffIndex++;
+                        consecutiveWorkDays = 0;
+                    }
+                }
+                
+                scheduleData[monthKey][day] = dayShifts;
+            }
+        }
+
+        // Save schedule to localStorage
+        function saveSchedule() {
+            localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+            showNotification('Đã lưu lịch thành công!');
+        }
+
+        // Export dialog functions
+        function showExportDialog() {
+            exportDialog.style.display = 'block';
+            exportOverlay.style.display = 'block';
+        }
+
+        function hideExportDialog() {
+            exportDialog.style.display = 'none';
+            exportOverlay.style.display = 'none';
+        }
+
+        // Export to Excel - Vertical (by day)
+        function exportToExcelVertical() {
+            const monthKey = `${currentMonth}-${currentYear}`;
+            const monthData = scheduleData[monthKey];
+            
+            if (!monthData) {
+                showNotification('Không có dữ liệu để xuất Excel', false);
+                return;
+            }
+            
+            // Prepare data for Excel
+            const excelData = [];
+            const headers = ['Ngày', 'Thứ', 'Ca 1 - Sáng', 'Ca 2 - Chiều', 'Ca 3 - Tối'];
+            excelData.push(headers);
+            
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const daysOfWeek = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(currentYear, currentMonth, day);
+                const dayOfWeek = daysOfWeek[date.getDay()];
+                
+                const dayShifts = monthData[day] || { morning: [], afternoon: [], evening: [] };
+                
+                const morningStaff = dayShifts.morning.map(id => {
+                    const staff = staffMembers.find(s => s.id === id);
+                    return staff ? staff.name : '';
+                }).join(', ');
+                
+                const afternoonStaff = dayShifts.afternoon.map(id => {
+                    const staff = staffMembers.find(s => s.id === id);
+                    return staff ? staff.name : '';
+                }).join(', ');
+                
+                const eveningStaff = dayShifts.evening.map(id => {
+                    const staff = staffMembers.find(s => s.id === id);
+                    return staff ? staff.name : '';
+                }).join(', ');
+                
+                excelData.push([
+                    day,
+                    dayOfWeek,
+                    morningStaff,
+                    afternoonStaff,
+                    eveningStaff
+                ]);
+            }
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Lịch trực');
+            
+            // Generate file name
+            const monthNames = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+            const fileName = `Lich_truc_theo_ngay_${monthNames[currentMonth]}_${currentYear}.xlsx`;
+            
+            // Export to Excel
+            XLSX.writeFile(wb, fileName);
+            showNotification(`Đã xuất file Excel: ${fileName}`);
+            
+            hideExportDialog();
+        }
+        
+        // Export to Excel - Horizontal (by staff)
+       function exportToExcelHorizontal() {
+    const monthKey = `${currentMonth}-${currentYear}`;
+    const monthData = scheduleData[monthKey];
+    
+    if (!monthData) {
+        showNotification('Không có dữ liệu để xuất Excel', false);
+        return;
+    }
+    
+    // Prepare data for Excel - Horizontal version
+    const excelData = [];
+    
+    // Header row
+    const headerRow = ['STT', 'Họ tên'];
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    
+    // Add day headers with weekday info
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentYear, currentMonth, day);
+        const dayOfWeek = daysOfWeek[date.getDay()];
+        headerRow.push(`${day}/${dayOfWeek}`);
+    }
+    excelData.push(headerRow);
+    
+    // Create a map for staff shifts
+    const staffShifts = {};
+    staffMembers.forEach(staff => {
+        staffShifts[staff.id] = {
+            name: staff.name,
+            days: Array(daysInMonth).fill('')
+        };
+    });
+    
+    // Fill in shift data for each day
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayShifts = monthData[day] || { morning: [], afternoon: [], evening: [] };
+        
+        // Morning shifts (Ca 1)
+        dayShifts.morning.forEach(staffId => {
+            if (staffShifts[staffId]) {
+                staffShifts[staffId].days[day-1] = '1';
+            }
+        });
+        
+        // Afternoon shifts (Ca 2)
+        dayShifts.afternoon.forEach(staffId => {
+            if (staffShifts[staffId]) {
+                staffShifts[staffId].days[day-1] = '2';
+            }
+        });
+        
+        // Evening shifts (Ca 3)
+        dayShifts.evening.forEach(staffId => {
+            if (staffShifts[staffId]) {
+                staffShifts[staffId].days[day-1] = '3';
+            }
+        });
+    }
+    
+    // Convert to excel rows
+    let stt = 1;
+    for (const staffId in staffShifts) {
+        const staff = staffShifts[staffId];
+        const row = [
+            stt++,
+            staff.name,
+            ...staff.days
+        ];
+        excelData.push(row);
+    }
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    
+    // Set column widths
+    const colWidths = [
+        { wch: 5 },  // STT
+        { wch: 20 }, // Họ tên
+    ];
+    // Add day columns (width 6)
+    for (let i = 0; i < daysInMonth; i++) {
+        colWidths.push({ wch: 6 });
+    }
+    ws['!cols'] = colWidths;
+    
+    // Add conditional formatting for shifts
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let col = 2; col <= range.e.c; col++) {
+        for (let row = 1; row <= range.e.r; row++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+            const cell = ws[cellAddress];
+            if (cell) {
+                if (cell.v === '1') {
+                    cell.s = { fill: { fgColor: { rgb: "FFF8E58C" } } }; // Màu ca sáng
+                } else if (cell.v === '2') {
+                    cell.s = { fill: { fgColor: { rgb: "FFFFCCE6" } } }; // Màu ca chiều
+                } else if (cell.v === '3') {
+                    cell.s = { fill: { fgColor: { rgb: "FFD1E7FF" } } }; // Màu ca tối
+                }
+            }
+        }
+    }
+    
+    // Freeze header row and first 2 columns
+    ws['!freeze'] = { xSplit: 2, ySplit: 1, topLeftCell: 'C2' };
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Lịch trực');
+    
+    // Generate file name
+    const monthNames = ["01", "02", "03", "04", "05", "06", 
+                       "07", "08", "09", "10", "11", "12"];
+    const fileName = `Lich_truc_nhan_vien_${monthNames[currentMonth]}_${currentYear}.xlsx`;
+    
+    // Export to Excel
+    XLSX.writeFile(wb, fileName);
+    showNotification(`Đã xuất file Excel: ${fileName}`);
+    
+    hideExportDialog();
+}
+
+        // Update the calendar display
+        function updateCalendar() {
+            const monthKey = `${currentMonth}-${currentYear}`;
+            
+            // Check if schedule exists for this month
+            if (!scheduleData[monthKey]) {
+                if (confirm(`Tháng này chưa có lịch. Bạn có muốn tạo lịch tự động không?`)) {
+                    generateSchedule();
+                }
+            }
+            
+            const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+                              "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
+            currentMonthElement.textContent = `${monthNames[currentMonth]}, ${currentYear}`;
+            
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            // Adjust firstDay to make Monday the first day of week (0=Monday)
+            const adjustedFirstDay = (firstDay + 6) % 7;
+            
+            calendarBody.innerHTML = '';
+            
+            let day = 1;
+            for (let i = 0; i < 6; i++) {
+                // Stop when we've processed all days
+                if (day > daysInMonth) break;
+                
+                const row = document.createElement('tr');
+                
+                for (let j = 0; j < 7; j++) {
+                    const cell = document.createElement('td');
+                    
+                    if ((i === 0 && j < adjustedFirstDay) || day > daysInMonth) {
+                        // Empty cell before first day or after last day
+                        cell.innerHTML = '&nbsp;';
+                    } else {
+                        const currentDate = new Date(currentYear, currentMonth, day);
+                        const dayOfWeek = currentDate.getDay();
+                        
+                        // Add day number
+                        const dayNumber = document.createElement('div');
+                        dayNumber.className = 'day-number';
+                        dayNumber.textContent = day;
+                        cell.appendChild(dayNumber);
+                        
+                        // Check if weekend or holiday
+                        if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            cell.classList.add('weekend');
+                        }
+                        
+                        // Add shifts for this day in order: Ca 1 → Ca 2 → Ca 3
+                        if (scheduleData[monthKey] && scheduleData[monthKey][day]) {
+                            const dayShifts = scheduleData[monthKey][day];
+                            let staffShiftCount = 0;
+                            
+                            // Ca 1 - Sáng
+                            dayShifts.morning.forEach(staffId => {
+                                if (selectedStaff === 'all' || selectedStaff === staffId.toString()) {
+                                    const staff = staffMembers.find(s => s.id === staffId);
+                                    if (staff) {
+                                        const shift = document.createElement('span');
+                                        shift.className = 'shift morning';
+                                        shift.textContent = `Ca 1: ${staff.name}`;
+                                        shift.style.borderLeft = `3px solid ${staff.color}`;
+                                        cell.appendChild(shift);
+                                        staffShiftCount++;
+                                    }
+                                }
+                            });
+                            
+                            // Ca 2 - Chiều
+                            dayShifts.afternoon.forEach(staffId => {
+                                if (selectedStaff === 'all' || selectedStaff === staffId.toString()) {
+                                    const staff = staffMembers.find(s => s.id === staffId);
+                                    if (staff) {
+                                        const shift = document.createElement('span');
+                                        shift.className = 'shift afternoon';
+                                        shift.textContent = `Ca 2: ${staff.name}`;
+                                        shift.style.borderLeft = `3px solid ${staff.color}`;
+                                        cell.appendChild(shift);
+                                        staffShiftCount++;
+                                    }
+                                }
+                            });
+                            
+                            // Ca 3 - Tối
+                            dayShifts.evening.forEach(staffId => {
+                                if (selectedStaff === 'all' || selectedStaff === staffId.toString()) {
+                                    const staff = staffMembers.find(s => s.id === staffId);
+                                    if (staff) {
+                                        const shift = document.createElement('span');
+                                        shift.className = 'shift evening';
+                                        shift.textContent = `Ca 3: ${staff.name}`;
+                                        shift.style.borderLeft = `3px solid ${staff.color}`;
+                                        cell.appendChild(shift);
+                                        staffShiftCount++;
+                                    }
+                                }
+                            });
+                            
+                            // Add shift count indicator
+                            if (staffShiftCount > 0) {
+                                const countIndicator = document.createElement('div');
+                                countIndicator.className = 'shift-count';
+                                countIndicator.textContent = `${staffShiftCount} ca`;
+                                cell.appendChild(countIndicator);
+                            }
+                        }
+                        
+                        day++;
+                    }
+                    
+                    row.appendChild(cell);
+                }
+                
+                calendarBody.appendChild(row);
+            }
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
